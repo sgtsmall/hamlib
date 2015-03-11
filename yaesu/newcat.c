@@ -5,6 +5,7 @@
  * newcat.c - (C) Nate Bargmann 2007 (n0nb at arrl.net)
  *            (C) Stephane Fillod 2008-2010
  *            (C) Terry Embry 2008-2010
+ *            (C) Alex Stewart 2015
  *
  * This shared library provides an API for communicating
  * via serial interface to any newer Yaesu radio using the
@@ -57,6 +58,7 @@ typedef enum nc_rigid_e {
     NC_RIGID_NONE            = 0,
     NC_RIGID_FT450           = 241,
     NC_RIGID_FT950           = 310,
+    NC_RIGID_FT991           = 570,
     NC_RIGID_FT2000          = 251,
     NC_RIGID_FT2000D         = 252,
     NC_RIGID_FTDX9000D       = 101,
@@ -78,6 +80,7 @@ typedef struct _yaesu_newcat_commands {
     ncboolean           ft2000;
     ncboolean           ft9000;
     ncboolean           ft5000;
+    ncboolean           ft991;
 } yaesu_newcat_commands_t;
 
 /*
@@ -88,6 +91,8 @@ typedef struct _yaesu_newcat_commands {
  * PR - Speech Proc ON/OFF, and BC - Auto Notch filter ON/OFF.
  * The FT-450 returns -RIG_ENVAIL for these unavailable CAT commands.
  *
+ * FT-991 Missing Commands AN - Antenna Select, DP, DS, FK, FR, MK, RF, RO RP, SF,ST,VF, VR,VS,VV
+ *        Added Commands BA - VFO-B to VFO-A, DT - Date and Time, ZI - "Zero IN"
  * NOTE: The following table must be in alphabetical order by the
  * command.  This is because it is searched using a binary search
  * to determine whether or not a command is valid for a given rig.
@@ -97,109 +102,112 @@ typedef struct _yaesu_newcat_commands {
  *
  */
 static const yaesu_newcat_commands_t valid_commands[] = {
-    /*   Command    FT-450  FT-950  FT-2000 FT-9000 FT-5000 */
-    {"AB",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE    },
-    {"AC",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"AG",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"AI",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"AM",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE    },
-    {"AN",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE    },
-    {"BC",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE    },
-    {"BD",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"BI",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"BP",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"BS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"BU",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"BY",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"CH",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"CN",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"CO",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"CS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"CT",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"DA",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"DN",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"DP",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE    },
-    {"DS",      TRUE,   FALSE,  TRUE,   TRUE,   TRUE    },
-    {"ED",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"EK",      FALSE,  TRUE,   TRUE,   TRUE,   FALSE   },
-    {"EU",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"EX",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"FA",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"FB",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"FK",      FALSE,  TRUE,   TRUE,   TRUE,   FALSE   },
-    {"FR",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE    },
-    {"FS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"FT",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"GT",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"ID",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"IF",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"IS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"KM",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"KP",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"KR",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"KS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"KY",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"LK",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"LM",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"MA",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE    },
-    {"MC",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"MD",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"MG",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"MK",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"ML",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"MR",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"MS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"MW",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"MX",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE    },
-    {"NA",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"NB",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"NL",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE    },
-    {"NR",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"OI",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"OS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"PA",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"PB",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"PC",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"PL",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE    },
-    {"PR",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE    },
-    {"PS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"QI",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"QR",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"QS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"RA",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"RC",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"RD",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"RF",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE    },
-    {"RG",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"RI",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"RL",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"RM",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"RO",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE    },
-    {"RP",      TRUE,   FALSE,  FALSE,  FALSE,  FALSE   },
-    {"RS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"RT",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"RU",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"SC",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"SD",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"SF",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE    },
-    {"SH",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"SM",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"SQ",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"ST",      TRUE,   FALSE,  FALSE,  FALSE,  FALSE   },
-    {"SV",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"TS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"TX",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"UL",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"UP",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"VD",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"VF",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE    },
-    {"VG",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"VM",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"VR",      TRUE,   FALSE,  FALSE,  FALSE,  FALSE   },
-    {"VS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"VV",      TRUE,   FALSE,  FALSE,  FALSE,  FALSE   },
-    {"VX",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
-    {"XT",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE    },
+    /*   Command    FT-450  FT-950  FT-2000 FT-9000 FT-5000 FT-991*/
+    {"AB",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"AC",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"AG",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"AI",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"AM",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"AN",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE,   FALSE   },
+    {"BA",      FALSE,  FALSE,  FALSE,  FALSE,  FALSE,  TRUE    },
+    {"BC",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"BD",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"BI",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"BP",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"BS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"BU",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"BY",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"CH",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"CN",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"CO",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"CS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"CT",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"DA",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"DN",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"DP",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE,   FALSE   },
+    {"DS",      TRUE,   FALSE,  TRUE,   TRUE,   TRUE,   FALSE   },
+    {"DT",      FALSE,  FALSE,  FALSE,  FALSE,  FALSE,  TRUE    },
+    {"ED",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"EK",      FALSE,  TRUE,   TRUE,   TRUE,   FALSE,  TRUE    },
+    {"EU",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"EX",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"FA",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"FB",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"FK",      FALSE,  TRUE,   TRUE,   TRUE,   FALSE,  FALSE   },
+    {"FR",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE,   FALSE   },
+    {"FS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"FT",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"GT",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"ID",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"IF",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"IS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"KM",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"KP",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"KR",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"KS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"KY",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"LK",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"LM",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"MA",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"MC",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"MD",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"MG",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"MK",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   FALSE   },
+    {"ML",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"MR",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"MS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"MW",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"MX",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"NA",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"NB",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"NL",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"NR",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"OI",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"OS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"PA",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"PB",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"PC",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"PL",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"PR",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"PS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"QI",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"QR",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"QS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"RA",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"RC",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"RD",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"RF",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE,   FALSE   },
+    {"RG",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"RI",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"RL",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"RM",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"RO",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE,   FALSE   },
+    {"RP",      TRUE,   FALSE,  FALSE,  FALSE,  FALSE,  FALSE   },
+    {"RS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"RT",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"RU",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"SC",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"SD",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"SF",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE,   FALSE   },
+    {"SH",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"SM",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"SQ",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"ST",      TRUE,   FALSE,  FALSE,  FALSE,  FALSE,  FALSE   },
+    {"SV",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"TS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"TX",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"UL",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"UP",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"VD",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"VF",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE,   FALSE   },
+    {"VG",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"VM",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"VR",      TRUE,   FALSE,  FALSE,  FALSE,  FALSE,  FALSE   },
+    {"VS",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   FALSE   },
+    {"VV",      TRUE,   FALSE,  FALSE,  FALSE,  FALSE,  FALSE   },
+    {"VX",      TRUE,   TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"XT",      FALSE,  TRUE,   TRUE,   TRUE,   TRUE,   TRUE    },
+    {"ZI",      FALSE,  FALSE,  FALSE,  FALSE,  FALSE,  TRUE    },
 };
 int                     valid_commands_count = sizeof(valid_commands) / sizeof(yaesu_newcat_commands_t);
 
@@ -235,6 +243,7 @@ static int newcat_get_faststep(RIG * rig, ncboolean * fast_step);
 static int newcat_get_rigid(RIG * rig);
 static int newcat_get_vfo_mode(RIG * rig, vfo_t * vfo_mode);
 static int newcat_get_cmd(RIG * rig);
+static int newcat_get_cmd_noBB(RIG * rig);
 static int newcat_vfomem_toggle(RIG * rig);
 static ncboolean newcat_valid_command(RIG *rig, char *command);
 
@@ -412,8 +421,12 @@ int newcat_set_freq(RIG *rig, vfo_t vfo, freq_t freq) {
     // CAT command string for setting frequency requires that 8 digits be sent
     // including leading fill zeros
 
-    snprintf(priv->cmd_str, sizeof(priv->cmd_str), "F%c%08d%c", c, (int)freq, cat_term);
-
+    /* FT-991 uses 9 digit Frequency */
+    if (newcat_is_rig(rig, RIG_MODEL_FT991)) {
+        snprintf(priv->cmd_str, sizeof(priv->cmd_str), "F%c%09d%c", c, (int)freq, cat_term);
+    }
+    else { snprintf(priv->cmd_str, sizeof(priv->cmd_str), "F%c%08d%c", c, (int)freq, cat_term);
+    }    
     rig_debug(RIG_DEBUG_TRACE, "%s: cmd_str = %s\n", __func__, priv->cmd_str);
     return write_block(&state->rigport, priv->cmd_str, strlen(priv->cmd_str));
 }
@@ -602,7 +615,7 @@ int newcat_get_mode(RIG *rig, vfo_t vfo, rmode_t *mode, pbwidth_t *width)
       }
 
     /*
-     * The current mode value is a digit '0' ... 'C'
+     * The current mode value is a digit '0' ... 'E'
      * embedded at ret_data[3] in the read string.
      */
     c = priv->ret_data[3];
@@ -667,6 +680,10 @@ int newcat_get_mode(RIG *rig, vfo_t vfo, rmode_t *mode, pbwidth_t *width)
             *mode = RIG_MODE_AM;       /* narrow, FT950 */
             *width = rig_passband_narrow(rig, *mode);
             return RIG_OK;
+//        case 'E':
+//            *mode = RIG_MODE_DVFM;       /* C4FM, FT991 */
+//            break;
+
         default:
             return -RIG_EPROTO;
     }
@@ -698,13 +715,25 @@ int newcat_set_vfo(RIG *rig, vfo_t vfo) {
 
     rig_debug(RIG_DEBUG_TRACE, "%s: called, passed vfo = 0x%02x\n", __func__, vfo);
 
+    /*
+     * FT-991 doesnt have VS or equivalent
+     * but it does pass the VFO 'A' to other commands and it can check for MEM
+     * so here is one possible fix...
+     *
+     */
+    if (newcat_is_rig(rig, RIG_MODEL_FT991)) {
+        rig_debug(RIG_DEBUG_TRACE, "%s: Force VFO A for FT-991 \n", __func__);
+        vfo = RIG_VFO_A;
+    } else
+    {
+    
     if (!newcat_valid_command(rig, command))
         return -RIG_ENAVAIL;
 
     err = newcat_set_vfo_from_alias(rig, &vfo);   /* passes RIG_VFO_MEM, RIG_VFO_A, RIG_VFO_B */
     if (err < 0)
         return err;
-
+    }
     switch(vfo) {
         case RIG_VFO_A:
         case RIG_VFO_B:
@@ -785,28 +814,39 @@ int newcat_get_vfo(RIG *rig, vfo_t *vfo) {
         return -RIG_EINVAL;
 
     rig_debug(RIG_DEBUG_VERBOSE, "%s called\n", __func__);
-
-    if (!newcat_valid_command(rig, command))
-        return -RIG_ENAVAIL;
+/*
+ * FT-991 doesnt have VS or equivalent
+ * but it does pass the VFO 'A' to other commands and it can check for MEM
+ * so here is one possible fix...
+ *
+ */
+   if (newcat_is_rig(rig, RIG_MODEL_FT991)) { 
+    rig_debug(RIG_DEBUG_TRACE, "%s: Force VFO A for FT-991 \n", __func__);
+        c = '0';
+    }
+    else {
+        if (!newcat_valid_command(rig, command))
+            return -RIG_ENAVAIL;
 
     /* Build the command string */
-    snprintf(priv->cmd_str, sizeof(priv->cmd_str), "%s;", command);
+        snprintf(priv->cmd_str, sizeof(priv->cmd_str), "%s;", command);
 
-    rig_debug(RIG_DEBUG_TRACE, "%s: cmd_str = %s\n", __func__, priv->cmd_str);
+        rig_debug(RIG_DEBUG_TRACE, "%s: cmd_str = %s\n", __func__, priv->cmd_str);
 
     /* Get VFO */
-    if (RIG_OK != (err = newcat_get_cmd (rig)))
-      {
-        return err;
-      }
-
+        if (RIG_OK != (err = newcat_get_cmd (rig)))
+        {
+            return err;
+        }
+        
     /*
      * The current VFO value is a digit ('0' or '1' ('A' or 'B' respectively))
      * embedded at ret_data[2] in the read string.
      */
 
     c = priv->ret_data[2];
-
+    } /* End FT-991 override */
+    
     switch (c) {
         case '0':
             *vfo = RIG_VFO_A;
@@ -1162,6 +1202,8 @@ int newcat_get_rit(RIG * rig, vfo_t vfo, shortfreq_t * rit)
     rig_debug(RIG_DEBUG_TRACE, "%s: RIT value = %c\n", __func__, err, priv->ret_data[18]);
 
     retval = priv->ret_data + 13;
+   /* P3 on FT-991 is position 15 ********************** */
+    if (newcat_is_rig(rig, RIG_MODEL_FT991)) retval = priv->ret_data + 14;
     rit_on = retval[5];
     retval[5] = '\0';
 
@@ -1223,6 +1265,8 @@ int newcat_get_xit(RIG * rig, vfo_t vfo, shortfreq_t * xit)
     rig_debug(RIG_DEBUG_TRACE, "%s: XIT value = %c\n", __func__, priv->ret_data[19]);
 
     retval = priv->ret_data + 13;
+    /* P3 on FT-991 is position 15 ********************** */
+    if (newcat_is_rig(rig, RIG_MODEL_FT991)) retval = priv->ret_data + 14;
     xit_on = retval[6];
     retval[5] = '\0';
 
@@ -1521,6 +1565,11 @@ int newcat_power2mW(RIG * rig, unsigned int *mwpower, float power, freq_t freq, 
             *mwpower = power * 100000;      /* 0..100 Linear scale */
             rig_debug(RIG_DEBUG_TRACE, "case FT950 - rig_id = %d, power = %f, *mwpower = %d\n", rig_id, power, *mwpower);
             break;
+        case NC_RIGID_FT991:
+            /* 100 Watts */
+            *mwpower = power * 100000;
+            rig_debug(RIG_DEBUG_TRACE, "case FT991 - rig_id = %d, *mwpower = %d\n", rig_id, *mwpower);
+            break;
         case NC_RIGID_FT2000:
             /* 100 Watts */
             *mwpower = power * 100000;
@@ -1579,6 +1628,11 @@ int newcat_mW2power(RIG * rig, float *power, unsigned int mwpower, freq_t freq, 
             /* 100 Watts */
             *power = mwpower / 100000.0;      /* 0..100 Linear scale */
             rig_debug(RIG_DEBUG_TRACE, "case FT950 - rig_id = %d, mwpower = %d, *power = %f\n", rig_id, mwpower, *power);
+            break;
+        case NC_RIGID_FT991:
+            /* 100 Watts */
+            *power = mwpower / 100000.0;
+            rig_debug(RIG_DEBUG_TRACE, "case FT991 - rig_id = %d, *power = %f\n", rig_id, *power);
             break;
         case NC_RIGID_FT2000:
             /* 100 Watts */
@@ -2424,6 +2478,10 @@ int newcat_set_func(RIG * rig, vfo_t vfo, setting_t func, int status)
             if (!newcat_valid_command(rig, "PR"))
                 return -RIG_ENAVAIL;
             snprintf(priv->cmd_str, sizeof(priv->cmd_str), "PR%d%c", status ? 1 : 0, cat_term);
+            /* 991 has speech and parametric force '0' speech for now */
+            if (newcat_is_rig(rig, RIG_MODEL_FT991)) {
+                snprintf(priv->cmd_str, sizeof(priv->cmd_str), "PR0%d%c", status ? 2 : 1, cat_term);
+            }
             break;
         case RIG_FUNC_VOX:
             if (!newcat_valid_command(rig, "VX"))
@@ -2509,6 +2567,10 @@ int newcat_get_func(RIG * rig, vfo_t vfo, setting_t func, int *status)
             if (!newcat_valid_command(rig, "PR"))
                 return -RIG_ENAVAIL;
             snprintf(priv->cmd_str, sizeof(priv->cmd_str), "PR%c", cat_term);
+  /* 991 has speech and parametric, force '0' speech for now */
+            if (newcat_is_rig(rig, RIG_MODEL_FT991)) {
+                snprintf(priv->cmd_str, sizeof(priv->cmd_str), "PR0%c", cat_term);
+            }
             break;
         case RIG_FUNC_VOX:
             if (!newcat_valid_command(rig, "VX"))
@@ -3072,7 +3134,7 @@ int newcat_get_channel(RIG * rig, channel_t * chan)
 
 
     /* Get Memory Channel */
-    if (RIG_OK != (err = newcat_get_cmd (rig)))
+    if (RIG_OK != (err = newcat_get_cmd_noBB (rig)))
       {
         if (-RIG_ERJCTED == err)
           {
@@ -3088,6 +3150,10 @@ int newcat_get_channel(RIG * rig, channel_t * chan)
 
     /* rptr_shift P10 ************************ */
     retval = priv->ret_data + 25;
+    
+    /* rptr_shift P10 on FT-991 is position 27 ********************** */
+    if (newcat_is_rig(rig, RIG_MODEL_FT991)) retval = priv->ret_data + 26;
+    
     switch (*retval) {
         case '0': chan->rptr_shift = RIG_RPT_SHIFT_NONE;  break;
         case '1': chan->rptr_shift = RIG_RPT_SHIFT_PLUS;  break;
@@ -3098,12 +3164,17 @@ int newcat_get_channel(RIG * rig, channel_t * chan)
 
     /* CTCSS Encoding P8 ********************* */
     retval = priv->ret_data + 22;
+    
+    /* CTCSS P8 on FT-991 is position 24 ********************** */
+    if (newcat_is_rig(rig, RIG_MODEL_FT991)) retval = priv->ret_data + 23;
     c = *retval;
 
     /* CTCSS Tone P9 ************************* */
     chan->ctcss_tone = 0;
     chan->ctcss_sql  = 0;
     retval = priv->ret_data + 23;
+/* CTCSS P0 on FT-991 is position 25 (posn 25-26) is defined as fixed '00 **** */
+    if (newcat_is_rig(rig, RIG_MODEL_FT991)) retval = priv->ret_data + 24;
     i = atoi(retval);
 
     if (c == '1')
@@ -3113,6 +3184,8 @@ int newcat_get_channel(RIG * rig, channel_t * chan)
 
     /* vfo, mem, P7 ************************** */
     retval = priv->ret_data + 21;
+    /* vfo, mem P7 on FT-991 is position 23 ********************** */
+    if (newcat_is_rig(rig, RIG_MODEL_FT991)) retval = priv->ret_data + 22;
 
     if (*retval == '1')
         chan->vfo = RIG_VFO_MEM;
@@ -3123,6 +3196,9 @@ int newcat_get_channel(RIG * rig, channel_t * chan)
     chan->width = 0;
 
     retval = priv->ret_data + 20;
+    /* Mode P6 on FT-991 is position 22 ********************** */
+    if (newcat_is_rig(rig, RIG_MODEL_FT991)) retval = priv->ret_data + 21;
+
     switch (*retval) {
         case '1': chan->mode = RIG_MODE_LSB;    break;
         case '2': chan->mode = RIG_MODE_USB;    break;
@@ -3142,10 +3218,14 @@ int newcat_get_channel(RIG * rig, channel_t * chan)
 
     /* Clarifier TX P5 *********************** */
     retval = priv->ret_data + 19;
+    /* Clarifier TX P5 on FT-991 is position 22 ********************** */
+    if (newcat_is_rig(rig, RIG_MODEL_FT991)) retval = priv->ret_data + 20;
     c2 = *retval;
 
     /* Clarifier RX P4 *********************** */
     retval = priv->ret_data + 18;
+    /* Clarifier RX P4 on FT-991 is position 22 ********************** */
+    if (newcat_is_rig(rig, RIG_MODEL_FT991)) retval = priv->ret_data + 19;
     c = *retval;
     *retval = '\0';
 
@@ -3153,6 +3233,8 @@ int newcat_get_channel(RIG * rig, channel_t * chan)
     chan->rit = 0;
     chan->xit = 0;
     retval = priv->ret_data + 13;
+   /* Clarifier Offset P3 on FT-991 is position 22 ********************** */
+    if (newcat_is_rig(rig, RIG_MODEL_FT991)) retval = priv->ret_data + 14;
     if (c == '1')
         chan->rit = atoi(retval);
     else if (c2 == '1')
@@ -3209,6 +3291,7 @@ ncboolean newcat_valid_command(RIG *rig, char *command) {
     const struct rig_caps *caps;
     ncboolean is_ft450;
     ncboolean is_ft950;
+    ncboolean is_ft991;
     ncboolean is_ft2000;
     ncboolean is_ft9000;
     ncboolean is_ft5000;
@@ -3237,12 +3320,13 @@ ncboolean newcat_valid_command(RIG *rig, char *command) {
 
     is_ft450 = newcat_is_rig(rig, RIG_MODEL_FT450);
     is_ft950 = newcat_is_rig(rig, RIG_MODEL_FT950);
+    is_ft991 = newcat_is_rig(rig, RIG_MODEL_FT991);
     is_ft2000 = newcat_is_rig(rig, RIG_MODEL_FT2000);
     is_ft9000 = newcat_is_rig(rig, RIG_MODEL_FT9000);
     is_ft5000 = newcat_is_rig(rig, RIG_MODEL_FTDX5000);
 
 
-    if (!is_ft450 && !is_ft950 && !is_ft2000 && !is_ft5000 && !is_ft9000) {
+    if (!is_ft450 && !is_ft950 && !is_ft991 && !is_ft2000 && !is_ft5000 && !is_ft9000) {
         rig_debug(RIG_DEBUG_ERR, "%s: '%s' is unknown\n",
                 __func__, caps->model_name);
         return FALSE;
@@ -3271,6 +3355,8 @@ ncboolean newcat_valid_command(RIG *rig, char *command) {
             if (is_ft450 && valid_commands[search_index].ft450)
                 return TRUE;
             else if (is_ft950 && valid_commands[search_index].ft950)
+                return TRUE;
+            else if (is_ft991 && valid_commands[search_index].ft991)
                 return TRUE;
             else if (is_ft2000 && valid_commands[search_index].ft2000)
                 return TRUE;
@@ -3614,6 +3700,74 @@ int newcat_set_rx_bandwidth(RIG *rig, vfo_t vfo, rmode_t mode, pbwidth_t width)
                 return -RIG_EINVAL;
         }   /* end switch(mode) */
     }   /* end if FT950 */
+    if (newcat_is_rig(rig, RIG_MODEL_FT991)) {
+        switch (mode) {
+            case RIG_MODE_PKTUSB:
+            case RIG_MODE_PKTLSB:
+            case RIG_MODE_RTTY:
+            case RIG_MODE_RTTYR:
+            case RIG_MODE_CW:
+            case RIG_MODE_CWR:
+                switch (width) {
+                    case 3000: snprintf(width_str, sizeof(width_str), "17"); narrow = '0'; break;  /* wide */
+                    case 2400: snprintf(width_str, sizeof(width_str), "16"); narrow = '0'; break;  /* wide */
+                    case 2000: snprintf(width_str, sizeof(width_str), "15"); narrow = '0'; break;  /* wide */
+                    case 1700: snprintf(width_str, sizeof(width_str), "14"); narrow = '0'; break;  /* wide */
+                    case 1400: snprintf(width_str, sizeof(width_str), "13"); narrow = '0'; break;
+                    case 1200: snprintf(width_str, sizeof(width_str), "12"); narrow = '0'; break;
+                    case  800: snprintf(width_str, sizeof(width_str), "11"); narrow = '0'; break;
+                    case  500: snprintf(width_str, sizeof(width_str), "10"); narrow = '0'; break;  /* narrow */
+                    case  450: snprintf(width_str, sizeof(width_str), "09"); narrow = '1'; break;
+                    case  400: snprintf(width_str, sizeof(width_str), "08"); narrow = '1'; break;
+                    case  350: snprintf(width_str, sizeof(width_str), "07"); narrow = '1'; break;
+                    case  300: snprintf(width_str, sizeof(width_str), "06"); narrow = '1'; break;
+                    case  250: snprintf(width_str, sizeof(width_str), "05"); narrow = '1'; break;
+                    case  200: snprintf(width_str, sizeof(width_str), "04"); narrow = '1'; break;
+                    case  150: snprintf(width_str, sizeof(width_str), "03"); narrow = '1'; break;
+                    case  100: snprintf(width_str, sizeof(width_str), "02"); narrow = '1'; break;
+                    case   50: snprintf(width_str, sizeof(width_str), "01"); narrow = '1'; break;
+                    default: return -RIG_EINVAL;
+                }
+                break;
+            case RIG_MODE_LSB:
+            case RIG_MODE_USB:
+                switch (width) {
+                    case 3200: snprintf(width_str, sizeof(width_str), "21"); narrow = '0'; break;
+                    case 3000: snprintf(width_str, sizeof(width_str), "20"); narrow = '0'; break;  /* wide */
+                    case 2900: snprintf(width_str, sizeof(width_str), "19"); narrow = '0'; break;
+                    case 2800: snprintf(width_str, sizeof(width_str), "18"); narrow = '0'; break;
+                    case 2700: snprintf(width_str, sizeof(width_str), "17"); narrow = '0'; break;
+                    case 2600: snprintf(width_str, sizeof(width_str), "16"); narrow = '0'; break;
+                    case 2500: snprintf(width_str, sizeof(width_str), "15"); narrow = '0'; break;
+                    case 2400: snprintf(width_str, sizeof(width_str), "14"); narrow = '0'; break;
+                    case 2300: snprintf(width_str, sizeof(width_str), "13"); narrow = '0'; break;
+                    case 2200: snprintf(width_str, sizeof(width_str), "12"); narrow = '0'; break;
+                    case 2100: snprintf(width_str, sizeof(width_str), "11"); narrow = '0'; break;
+                    case 1950: snprintf(width_str, sizeof(width_str), "10"); narrow = '0'; break;
+                    case 1800: snprintf(width_str, sizeof(width_str), "09"); narrow = '0'; break;  /* narrow */
+                    case 1650: snprintf(width_str, sizeof(width_str), "08"); narrow = '1'; break;
+                    case 1500: snprintf(width_str, sizeof(width_str), "07"); narrow = '1'; break;
+                    case 1350: snprintf(width_str, sizeof(width_str), "06"); narrow = '1'; break;
+                    case 1100: snprintf(width_str, sizeof(width_str), "05"); narrow = '1'; break;
+                    case  850: snprintf(width_str, sizeof(width_str), "04"); narrow = '1'; break;
+                    case  600: snprintf(width_str, sizeof(width_str), "03"); narrow = '1'; break;
+                    case  400: snprintf(width_str, sizeof(width_str), "02"); narrow = '1'; break;
+                    case  200: snprintf(width_str, sizeof(width_str), "01"); narrow = '1'; break;
+                    default: return -RIG_EINVAL;
+                }
+                break;
+            case RIG_MODE_AM:
+            case RIG_MODE_FM:
+            case RIG_MODE_PKTFM:
+                if (width < rig_passband_normal(rig, mode))
+                    err = newcat_set_narrow(rig, vfo, TRUE);
+                else
+                    err = newcat_set_narrow(rig, vfo, FALSE);
+                return err;
+            default:
+                return -RIG_EINVAL;
+        }   /* end switch(mode) */
+    }   /* end if FT950 */
     else {
         /* FT450, FT2000, FT5000, FT9000 */
         switch (mode) {
@@ -3764,7 +3918,74 @@ int newcat_get_rx_bandwidth(RIG *rig, vfo_t vfo, rmode_t mode, pbwidth_t *width)
         }   /* end switch(mode) */
 
     }   /* end if FT950 */
-    else {
+    if (newcat_is_rig(rig, RIG_MODEL_FT991)) {
+        switch (mode) {
+            case RIG_MODE_PKTUSB:
+            case RIG_MODE_PKTLSB:
+            case RIG_MODE_RTTY:
+            case RIG_MODE_RTTYR:
+            case RIG_MODE_CW:
+            case RIG_MODE_CWR:
+                switch (w) {
+                    case  0:
+                    case 17: *width = 3000; break;  /* wide   */
+                    case 16: *width = 2400; break;  /* wide   */
+                    case 15: *width = 2000; break;  /* wide   */
+                    case 14: *width = 1700; break;  /* wide   */
+                    case 13: *width = 1400; break;  /* wide   */
+                    case 12: *width = 1200; break;
+                    case 11: *width =  800; break;  /* normal */
+                    case 10: *width =  500; break;
+                    case  9: *width =  450; break;
+                    case  8: *width =  400; break;
+                    case  7: *width =  350; break;  /* narrow */
+                    case  6: *width =  300; break;
+                    case  5: *width =  250; break;
+                    case  4: *width =  200; break;
+                    case  3: *width =  150; break;
+                    case  2: *width =  100; break;
+                    case  1: *width =   50; break;
+                    default: return -RIG_EINVAL;
+                }
+                break;
+            case RIG_MODE_LSB:
+            case RIG_MODE_USB:
+                switch (w) {
+                    case  0:
+                    case  9: *width = 1800; break;  /* narrow */
+                    case 21: *width = 3200; break;  /* wide   */
+                    case 20: *width = 3000; break;  /* wide   */
+                    case 19: *width = 2900; break;
+                    case 18: *width = 2800; break;
+                    case 17: *width = 2700; break;
+                    case 16: *width = 2600; break;
+                    case 15: *width = 2500; break;
+                    case 14: *width = 2400; break;
+                    case 13: *width = 2300; break;  /* normal */
+                    case 12: *width = 2200; break;
+                    case 11: *width = 2100; break;
+                    case 10: *width = 1950; break;
+                    case  8: *width = 1650; break;
+                    case  7: *width = 1500; break;
+                    case  6: *width = 1350; break;
+                    case  5: *width = 1100; break;
+                    case  4: *width =  850; break;
+                    case  3: *width =  600; break;
+                    case  2: *width =  400; break;
+                    case  1: *width =  200; break;
+                    default: return -RIG_EINVAL;
+                }
+                break;
+            case RIG_MODE_AM:
+            case RIG_MODE_PKTFM:
+            case RIG_MODE_FM:
+                return RIG_OK;
+            default:
+                return -RIG_EINVAL;
+        }   /* end switch(mode) */
+
+    }   /* end if FT950 */
+     {
         /* FT450, FT2000, FT5000, FT9000 */
         switch (mode) {
             case RIG_MODE_PKTUSB:
@@ -3895,17 +4116,22 @@ int newcat_get_vfo_mode(RIG * rig, vfo_t * vfo_mode)
         return err;
       }
 
-    /* vfo, mem, P7 ************************** */
+    /* vfo, mem, P7 on most position 22 ************ */
     retval = priv->ret_data + 21;
-    switch (*retval) {
+    /* vfo, mem, P7 on FT-991 is position 23 ********************** */
+    if (newcat_is_rig(rig, RIG_MODEL_FT991)) retval = priv->ret_data + 22;
+        switch (*retval) {
         case '0': *vfo_mode = RIG_VFO_VFO; break;
         case '1':   /* Memory */
         case '2':   /* Memory Tune */
         case '3':   /* Quick Memory Bank */
         case '4':   /* Quick Memory Bank Tune */
+        case '5':   /* PMS */
+        case '6':   /* Home */
         default:
                   *vfo_mode = RIG_VFO_MEM;
     }
+	rig_debug(RIG_DEBUG_TRACE, "%s: vfo mode retval = %d\n", __func__, *retval);
 
     rig_debug(RIG_DEBUG_TRACE, "%s: vfo mode = %d\n", __func__, *vfo_mode);
 
@@ -4026,6 +4252,7 @@ int newcat_get_cmd (RIG *rig)
               rig_debug(RIG_DEBUG_ERR, "%s: Rig busy\n", __func__, priv->cmd_str);
               rc = -RIG_BUSBUSY;
               break;            /* retry read only */
+    
             }
           continue;
         }
@@ -4045,4 +4272,113 @@ int newcat_get_cmd (RIG *rig)
     }
 
   return rc;
+}
+/*
+ * Writes a null  terminated command string from  priv->cmd_str to the
+ * CAT  port and  returns a  response from  the rig  in priv->ret_data
+ * which is also null terminated.
+ *
+ * Honors the 'retry'  capabilities field by resending  the command up
+ * to 'retry' times until a valid response is received. In the special
+ * cases of receiving  a valid response to a different  command or the
+ * "?;" busy please wait response; the command is not resent but up to
+ * 'retry' retries to receive a valid response are made.
+ * FT-991 some commands e.g. 'MR' return '?:' for empty data
+ * This is a first hack to deal with this
+ */
+int newcat_get_cmd_noBB (RIG *rig)
+{
+    struct rig_state *state = &rig->state;
+    struct newcat_priv_data *priv = (struct newcat_priv_data *)rig->state.priv;
+    int retry_count = 0;
+    int rc = -RIG_EPROTO;
+    
+    while (rc != RIG_OK && retry_count++ <= state->rigport.retry)
+    {
+        if (rc != -RIG_BUSBUSY)
+        {
+            /* send the command */
+            rig_debug(RIG_DEBUG_TRACE, "cmd_str = %s\n", priv->cmd_str);
+            if (RIG_OK != (rc = write_block(&state->rigport, priv->cmd_str, strlen(priv->cmd_str))))
+            {
+                return rc;
+            }
+        }
+        
+        /* read the reply */
+        if ((rc = read_string(&state->rigport, priv->ret_data, sizeof(priv->ret_data),
+                              &cat_term, sizeof(cat_term))) <= 0)
+        {
+            continue;             /* usually a timeout - retry */
+        }
+        rig_debug(RIG_DEBUG_TRACE, "%s: read count = %d, ret_data = %s\n",
+                  __func__, rc, priv->ret_data);
+        rc = RIG_OK;              /* received something */
+        
+        /* Check that command termination is correct - alternative is
+         response is longer that the buffer */
+        if (!strchr(&cat_term, priv->ret_data[strlen(priv->ret_data) - 1]))
+        {
+            rig_debug(RIG_DEBUG_ERR, "%s: Command is not correctly terminated '%s'\n",
+                      __func__, priv->ret_data);
+            rc = -RIG_BUSBUSY;    /* don't write command again */
+            /* we could decrement retry_count
+             here but there is a danger of
+             infinite looping so we just use up
+             a retry for safety's sake */
+            continue;             /* retry */
+        }
+        
+        /* check for error codes */
+        if (2 == strlen(priv->ret_data))
+        {
+            /* The following error responses  are documented for Kenwood
+             but not for  Yaesu, but at least one of  them is known to
+             occur  in that  the  FT-450 certainly  responds to  "IF;"
+             occasionally with  "?;". The others are  harmless even of
+             they do not occur as they are unambiguous. */
+            switch (priv->ret_data[0])
+            {
+                case 'N':
+                    /* Command recognized by rig but invalid data entered. */
+                    rig_debug(RIG_DEBUG_VERBOSE, "%s: NegAck for '%s'\n", __func__, priv->cmd_str);
+                    return -RIG_ENAVAIL;
+                    
+                case 'O':
+                    /* Too many characters sent without a carriage return */
+                    rig_debug(RIG_DEBUG_VERBOSE, "%s: Overflow for '%s'\n", __func__, priv->cmd_str);
+                    rc = -RIG_EPROTO;
+                    break;            /* retry */
+                    
+                case 'E':
+                    /* Communication error */
+                    rig_debug(RIG_DEBUG_VERBOSE, "%s: Communication error for '%s'\n", __func__, priv->cmd_str);
+                    rc = -RIG_EIO;
+                    break;            /* retry */
+                    
+                    //         case '?':
+                    //           /* Rig busy wait please */
+                    //           rig_debug(RIG_DEBUG_ERR, "%s: Rig busy\n", __func__, priv->cmd_str);
+                    //           rc = -RIG_BUSBUSY;
+                    //           break;            /* retry read only */
+                    
+            }
+            continue;
+        }
+        
+        /* verify that reply was to the command we sent */
+        if ((priv->ret_data[0] != priv->cmd_str[0] || priv->ret_data[1] != priv->cmd_str[1]))
+        {
+            /*
+             * TODO: When RIG_TRN is enabled, we can pass the string
+             * to the decoder for callback. That way we don't ignore
+             * any commands.
+             */
+            rig_debug(RIG_DEBUG_ERR, "%s: wrong reply %.2s for command %.2s\n",
+                      __func__, priv->ret_data, priv->cmd_str);
+            rc = -RIG_BUSBUSY;    /* retry read only */
+        }
+    }
+    
+    return rc;
 }

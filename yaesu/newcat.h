@@ -49,7 +49,7 @@
 typedef char ncboolean;
 
 /* shared function version */
-#define NEWCAT_VER "0.22"
+#define NEWCAT_VER "0.23"
 
 /* Hopefully large enough for future use, 128 chars plus '\0' */
 #define NEWCAT_DATA_LEN                 129
@@ -93,6 +93,7 @@ typedef char ncboolean;
  * At this time, CAT documentation for the FT-450 can be obtained from
  * the Yaesu website at: http://www.yaesu.com/downloadFile.cfm?FileID=2600&FileCatID=158&FileName=FT%2D450%5FCAT%5FOperation%5FReference%5FBook.pdf&FileContentType=application%2Fpdf
  *
+ * FT-991 has no VS command so get and set vfo force VFO-A at the moment
  */
 
 
