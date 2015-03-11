@@ -139,7 +139,7 @@ typedef struct rig RIG;
 #define FRQRANGESIZ 30
 #define MAXCHANDESC 30		/* describe channel eg: "WWV 5Mhz" */
 #define TSLSTSIZ 20		/* max tuning step list size, zero ended */
-#define FLTLSTSIZ 42		/* max mode/filter list size, zero ended */
+#define FLTLSTSIZ 44		/* max mode/filter list size, zero ended */
 #define MAXDBLSTSIZ 8		/* max preamp/att levels supported, zero ended */
 #define CHANLSTSIZ 16		/* max mem_list size, zero ended */
 #define MAX_CAL_LENGTH 32	/* max calibration plots in cal_table_t */
