@@ -721,19 +721,27 @@ int newcat_set_vfo(RIG *rig, vfo_t vfo) {
      * so here is one possible fix...
      *
      */
-    if (newcat_is_rig(rig, RIG_MODEL_FT991)) {
-        rig_debug(RIG_DEBUG_TRACE, "%s: Force VFO A for FT-991 \n", __func__);
-        vfo = RIG_VFO_A;
+ /*   if (newcat_is_rig(rig, RIG_MODEL_FT991)) {
+        rig_debug(RIG_DEBUG_TRACE, "%s: Force VM instead of VS for FT-991 \n", __func__);
+        }
+              vfo = RIG_VFO_A;
     } else
     {
-    
+  */
+    if (newcat_is_rig(rig, RIG_MODEL_FT991)) {
+        rig_debug(RIG_DEBUG_TRACE, "%s: Force VM instead of VS for FT-991 \n", __func__);
+        snprintf(command, sizeof(command), "%s", "VM");
+    }
     if (!newcat_valid_command(rig, command))
         return -RIG_ENAVAIL;
 
     err = newcat_set_vfo_from_alias(rig, &vfo);   /* passes RIG_VFO_MEM, RIG_VFO_A, RIG_VFO_B */
     if (err < 0)
         return err;
-    }
+  /*  }*/
+    
+    rig_debug(RIG_DEBUG_TRACE, "%s: switch vfo = 0x%02x\n", __func__, vfo);
+
     switch(vfo) {
         case RIG_VFO_A:
         case RIG_VFO_B:
@@ -777,7 +785,13 @@ int newcat_set_vfo(RIG *rig, vfo_t vfo) {
     }
 
     /* Build the command string */
-    snprintf(priv->cmd_str, sizeof(priv->cmd_str), "%s%c%c", command, c, cat_term);
+    if (newcat_is_rig(rig, RIG_MODEL_FT991)) {
+        rig_debug(RIG_DEBUG_TRACE, "%s: Using VM instead of VS for FT-991 \n", __func__);
+        snprintf(priv->cmd_str, sizeof(priv->cmd_str), "VM%c", cat_term);
+    }
+        else {
+            snprintf(priv->cmd_str, sizeof(priv->cmd_str), "%s%c%c", command, c, cat_term);
+        }
 
     rig_debug(RIG_DEBUG_TRACE, "cmd_str = %s\n", priv->cmd_str);
 
@@ -2750,7 +2764,7 @@ int newcat_set_mem(RIG * rig, vfo_t vfo, int ch)
     if (valid_chan.freq <= 1.0)
       mem_caps = NULL;
 
-    rig_debug(RIG_DEBUG_TRACE, "ValChan Freq = %d, pMemCaps = %d\n", valid_chan.freq, mem_caps);
+    rig_debug(RIG_DEBUG_TRACE, "%s: ValChan Freq = %f, pMemCaps = %f\n", __func__, valid_chan.freq, mem_caps);
 
     /* Out of Range, or empty */
     if (!mem_caps)
@@ -2778,7 +2792,7 @@ int newcat_set_mem(RIG * rig, vfo_t vfo, int ch)
     }
 
     /* Set Memory Channel Number ************** */
-    rig_debug(RIG_DEBUG_TRACE, "channel_num = %d, vfo = %d\n", ch, vfo);
+    rig_debug(RIG_DEBUG_TRACE, "%s: channel_num = %d, vfo = %f\n", __func__,ch, vfo);
 
     snprintf(priv->cmd_str, sizeof(priv->cmd_str), "MC%03d%c", ch, cat_term);
 
@@ -3075,8 +3089,13 @@ int newcat_set_channel(RIG * rig, const channel_t * chan)
         case RIG_RPT_SHIFT_MINUS: c_rptr_shift = '2'; break;
         default: c_rptr_shift = '0';
     }
-
     snprintf(priv->cmd_str, sizeof(priv->cmd_str), "MW%03d%08d%+.4d%c%c%c%c%c%02d%c%c",
+             chan->channel_num, (int)chan->freq, rxit, c_rit, c_xit, c_mode, c_vfo,
+             c_tone, tone, c_rptr_shift, cat_term);
+    
+    /* FT-991 9 character frequency */
+    if (newcat_is_rig(rig, RIG_MODEL_FT991)) snprintf(priv->cmd_str, sizeof(priv->cmd_str),
+            "MW%03d%09d%+.4d%c%c%c%c%c%02d%c%c",
             chan->channel_num, (int)chan->freq, rxit, c_rit, c_xit, c_mode, c_vfo,
             c_tone, tone, c_rptr_shift, cat_term);
 
@@ -3145,6 +3164,7 @@ int newcat_get_channel(RIG * rig, channel_t * chan)
           }
         return err;
       }
+    rig_debug(RIG_DEBUG_VERBOSE, "%s: still reading channel %s\n", __func__, priv->ret_data);
 
     /* ret_data string to channel_t struct :: this will destroy ret_data */
 
@@ -4131,9 +4151,9 @@ int newcat_get_vfo_mode(RIG * rig, vfo_t * vfo_mode)
         default:
                   *vfo_mode = RIG_VFO_MEM;
     }
-	rig_debug(RIG_DEBUG_TRACE, "%s: vfo mode retval = %d\n", __func__, *retval);
+	rig_debug(RIG_DEBUG_TRACE, "%s: vfo mode retval = %c\n", __func__, *retval);
 
-    rig_debug(RIG_DEBUG_TRACE, "%s: vfo mode = %d\n", __func__, *vfo_mode);
+    rig_debug(RIG_DEBUG_TRACE, "%s: vfo mode = %x\n", __func__, *vfo_mode);
 
     return err;
 }
@@ -4298,13 +4318,14 @@ int newcat_get_cmd_noBB (RIG *rig)
         if (rc != -RIG_BUSBUSY)
         {
             /* send the command */
-            rig_debug(RIG_DEBUG_TRACE, "cmd_str = %s\n", priv->cmd_str);
+            rig_debug(RIG_DEBUG_TRACE, "%s: cmd_str = %s\n", __func__, priv->cmd_str);
             if (RIG_OK != (rc = write_block(&state->rigport, priv->cmd_str, strlen(priv->cmd_str))))
             {
                 return rc;
             }
         }
-        
+        rig_debug(RIG_DEBUG_TRACE, "%s: b4 read count = %d, ret_data = %s\n",
+                  __func__, rc, priv->ret_data);
         /* read the reply */
         if ((rc = read_string(&state->rigport, priv->ret_data, sizeof(priv->ret_data),
                               &cat_term, sizeof(cat_term))) <= 0)
@@ -4356,16 +4377,16 @@ int newcat_get_cmd_noBB (RIG *rig)
                     rc = -RIG_EIO;
                     break;            /* retry */
                     
-                    //         case '?':
-                    //           /* Rig busy wait please */
-                    //           rig_debug(RIG_DEBUG_ERR, "%s: Rig busy\n", __func__, priv->cmd_str);
-                    //           rc = -RIG_BUSBUSY;
-                    //           break;            /* retry read only */
+                case '?':
+                    // for FT-991 this may just be empty data e.g. MR
+                    rig_debug(RIG_DEBUG_VERBOSE, "%s: Assume Empty Data\n", __func__, priv->cmd_str);
+                    return -RIG_ERJCTED;
                     
             }
             continue;
         }
-        
+        rig_debug(RIG_DEBUG_TRACE, "%s: verify cmd_str[0] %s, ret_data[0] = %s\n",
+                  __func__, priv->cmd_str , priv->ret_data);
         /* verify that reply was to the command we sent */
         if ((priv->ret_data[0] != priv->cmd_str[0] || priv->ret_data[1] != priv->cmd_str[1]))
         {

@@ -45,7 +45,7 @@ int xml_save (RIG *rig, const char *outfilename)
 	xmlDocPtr Doc;
 	xmlNodePtr root;
 
-	/* create xlm Doc */
+	/* create xml Doc */
 	Doc=xmlNewDoc((unsigned char *) "1.0");
 	root=xmlNewNode(NULL,(unsigned char *) "hamlib");
 	xmlDocSetRootElement(Doc, root);
@@ -126,6 +126,7 @@ int dump_xml_chan(RIG *rig, channel_t **chan_pp, int chan_num, const chan_t *cha
                                    (unsigned char *) "channel_desc",
                                    (unsigned char *) chan.channel_desc);
 	}
+    if (mem_caps->freq && chan.freq ) { /* quick fix to search past blanks */
 	if (mem_caps->vfo) {
 		sprintf(attrbuf,"%d",chan.vfo);
 		xmlNewProp(node, (unsigned char *) "vfo", (unsigned char *) attrbuf);
@@ -218,7 +219,7 @@ int dump_xml_chan(RIG *rig, channel_t **chan_pp, int chan_num, const chan_t *cha
 		sprintf(attrbuf,"%x",chan.flags);
 		xmlNewProp(node, (unsigned char *) "flags", (unsigned char *) attrbuf);
 	}
-
+    }
   return 0;
 }
 #endif
